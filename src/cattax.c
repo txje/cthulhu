@@ -69,19 +69,19 @@ int lca(int taxid0, int taxid1, taxonomy* tax) {
 }
 
 int main(int argc, char *argv[]) {
-	mm_idxopt_t iopt;
-	mm_mapopt_t mopt;
+  mm_idxopt_t iopt;
+  mm_mapopt_t mopt;
 
-	mm_verbose = 2; // disable message output to stderr
-	mm_set_opt(0, &iopt, &mopt);
-	mopt.flag |= MM_F_CIGAR; // perform alignment
+  mm_verbose = 2; // disable message output to stderr
+  mm_set_opt(0, &iopt, &mopt);
+  mopt.flag |= MM_F_CIGAR; // perform alignment
 
-	if (argc < 5) {
-		fprintf(stderr, "Usage: cattax <query.fa> <target.fa> <directory w/*.dmp> <n_threads>\n");
-		return 1;
-	}
+  if (argc < 5) {
+    fprintf(stderr, "Usage: cattax <query.fa> <target.fa> <directory w/*.dmp> <n_threads>\n");
+    return 1;
+  }
 
-	int n_threads = atoi(argv[4]);
+  int n_threads = atoi(argv[4]);
 
   char* name_f = malloc((strlen(argv[3])+10) * sizeof(char));
   strcpy(name_f, argv[3]);
@@ -100,39 +100,39 @@ int main(int argc, char *argv[]) {
   khash_t(acc2tax) *a2tx = parse_acc2tax(acc2tax_f);
   printf("Parsed taxonomy files.\n");
 
-	// open query file for reading; you may use your favorite FASTA/Q parser
-	gzFile f;
-	kseq_t *ks;
+  // open query file for reading; you may use your favorite FASTA/Q parser
+  gzFile f;
+  kseq_t *ks;
 
-	// open index reader
+  // open index reader
   fprintf(stderr, "Building mm2 index...\n");
-	mm_idx_reader_t *r = mm_idx_reader_open(argv[2], &iopt, 0);
-	mm_idx_t *mi;
+  mm_idx_reader_t *r = mm_idx_reader_open(argv[2], &iopt, 0);
+  mm_idx_t *mi;
   khint_t bin; // hash bin (result of kh_put/get)
   int absent;
   size_t taxid;
   kvec_t(int) read_taxa;
   kv_init(read_taxa);
-	while ((mi = mm_idx_reader_read(r, n_threads)) != 0) { // traverse each part of the index
+  while ((mi = mm_idx_reader_read(r, n_threads)) != 0) { // traverse each part of the index
     // open (or re-open) the query file -- needs to be re-read through for each part of the index
-	  f = gzopen(argv[1], "r");
-	  assert(f);
-	  ks = kseq_init(f); 
+    f = gzopen(argv[1], "r");
+    assert(f);
+    ks = kseq_init(f); 
 
     fprintf(stderr, "Processing mm2 index (or fraction thereof)...\n");
-		mm_mapopt_update(&mopt, mi); // this sets the maximum minimizer occurrence; TODO: set a better default in mm_mapopt_init()!
-		mm_tbuf_t *tbuf = mm_tbuf_init(); // thread buffer; for multi-threading, allocate one tbuf for each thread
+    mm_mapopt_update(&mopt, mi); // this sets the maximum minimizer occurrence; TODO: set a better default in mm_mapopt_init()!
+    mm_tbuf_t *tbuf = mm_tbuf_init(); // thread buffer; for multi-threading, allocate one tbuf for each thread
     int n = 0;
-		while (kseq_read(ks) >= 0) { // each kseq_read() call reads one query sequence
+    while (kseq_read(ks) >= 0) { // each kseq_read() call reads one query sequence
       if(n == kv_size(read_taxa)) {
         kv_push(int, read_taxa, 0);
       }
-			mm_reg1_t *reg;
-			int j, i, n_reg;
-			reg = mm_map(mi, ks->seq.l, ks->seq.s, &n_reg, tbuf, &mopt, 0); // get all hits for the query
-			for (j = 0; j < n_reg; ++j) { // traverse hits and print them out
-				mm_reg1_t *r = &reg[j];
-				assert(r->p); // with MM_F_CIGAR, this should not be NULL
+      mm_reg1_t *reg;
+      int j, i, n_reg;
+      reg = mm_map(mi, ks->seq.l, ks->seq.s, &n_reg, tbuf, &mopt, 0); // get all hits for the query
+      for (j = 0; j < n_reg; ++j) { // traverse hits and print them out
+        mm_reg1_t *r = &reg[j];
+        assert(r->p); // with MM_F_CIGAR, this should not be NULL
 
         bin = kh_get(acc2tax, a2tx, mi->seq[r->rid].name);
         absent = (bin == kh_end(a2tx)); 
@@ -164,18 +164,18 @@ int main(int argc, char *argv[]) {
             putchar('\n');
           }
         }
-				free(r->p);
-			}
+        free(r->p);
+      }
       n++;
-			free(reg);
-		}
+      free(reg);
+    }
     fprintf(stderr, "%d reads processed\n", n);
-		mm_tbuf_destroy(tbuf);
-		mm_idx_destroy(mi);
-	  kseq_destroy(ks); // close the query file
-	  gzclose(f);
-	}
-	mm_idx_reader_close(r); // close the index reader
+    mm_tbuf_destroy(tbuf);
+    mm_idx_destroy(mi);
+    kseq_destroy(ks); // close the query file
+    gzclose(f);
+  }
+  mm_idx_reader_close(r); // close the index reader
 
   // clean up a2tx (acc2tax)
   for (bin = 0; bin < kh_end(a2tx); ++bin) {
@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
   free(acc2tax_f);
   free_tax(tax);
 
-	return 0;
+  return 0;
 }
 
 /*
