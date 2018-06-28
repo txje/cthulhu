@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  printf("reference_name\tgenome_size\tcovered_pct\tavg_coverage\tcoverage_of_covered_loci\n");
+  printf("reference_name\tgenome_size\taligned_bp\tcovered_pct\tavg_coverage\tcoverage_of_covered_loci\n");
   char* name;
   for (i = 0; i < header->n_targets; i++) {
     bin = kh_get(acc2name, a2n, header->target_name[i]);
@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
       name = kh_key(n2s, bin);
       rs = kh_val(n2s, bin);
       if(rs.total_coverage > 0) {
-        printf("%s\t%d\t%f\t%f\t%f\n", name, rs.total_loci, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
+        printf("%s\t%d\t%d\t%f\t%f\t%f\n", name, rs.total_loci, rs.total_coverage, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
       }
     }
   }
