@@ -8,5 +8,9 @@ CatTax
     git clone https://github.com/lh3/minimap2
     cd minimap2
     make
+    cd ..
+    git clone https://github.com/samtools/htslib
+    cd htslib
+    make
     cd ../..
     make

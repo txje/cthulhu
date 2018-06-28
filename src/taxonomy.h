@@ -113,3 +113,16 @@ typedef struct tree_node {
 KHASH_MAP_INIT_INT(nodehash, tree_node);
 
 typedef khash_t(nodehash) taxtree;
+
+
+/*
+ * Utils
+ */
+
+// creates string:size_t hash
+// to map accessions to taxonomy IDs
+KHASH_MAP_INIT_STR(acc2tax, size_t);
+
+khash_t(acc2tax) *parse_acc2tax(char* f);
+
+int lca(int taxid0, int taxid1, taxonomy* tax);

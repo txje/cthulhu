@@ -10,64 +10,6 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-// creates string:size_t hash
-// to map accessions to taxonomy IDs
-KHASH_MAP_INIT_STR(acc2tax, size_t);
-
-khash_t(acc2tax) *parse_acc2tax(char* f) {
-  khash_t(acc2tax) *a2tx = kh_init(acc2tax);
-  //kh_resize(acc2tax, a2tx, 150000000); // there are ~133m accessions that we'll end up indexing - I'm not sure doing this saves any time (or space)
-  FILE *fp = fopen(f, "r");
-  if( fp == NULL ) {
-    fprintf(stderr, "Error reading acc2tax file '%s'\n", f);
-  }
-  char l[1024]; // maximum line size is 1024 chars
-  const char* delim = "\t";
-  char **parts;
-  int i;
-  khint_t bin; // hash bin (result of kh_put)
-  int absent;
-  parts = malloc(sizeof(char*) * 4); // 4 fields per line
-  while(fgets(l, sizeof l, fp) != NULL) {
-    char* ln = strdup(l);
-    i = 0;
-    parts[i] = strtok(ln, delim);
-    while(parts[i] != NULL && strcmp(parts[i], "\n") != 0) {
-      i++;
-      if(i >= 4) break;
-      parts[i] = strtok(NULL, delim);
-    }
-    if(i != 4) { // line too short or small or -1 for EOF
-      if(i == -1) {
-        return NULL;
-      } else {
-        fprintf(stderr, "acc2tax does not appear to be in expected format (some line has %d fields) - STOPPED READING HERE\n", i);
-        return NULL;
-      }
-    }
-    bin = kh_put(acc2tax, a2tx, strdup(parts[1]), &absent);
-    if(!absent) {
-      fprintf(stderr, "Accession ID '%s' occurs more than once...\n", parts[1]);
-      return NULL;
-    }
-    kh_val(a2tx, bin) = atoi(parts[2]);
-  }
-  free(parts);
-  fclose(fp);
-  return a2tx;
-}
-
-int lca(int taxid0, int taxid1, taxonomy* tax) {
-  while(taxid0 != 1 && taxid0 != taxid1) {
-    if(tax->nodes[taxid0].rank == 0 || tax->nodes[taxid0].rank > tax->nodes[taxid1].rank) {
-      taxid0 = tax->nodes[taxid0].parent;
-    } else {
-      taxid1 = tax->nodes[taxid1].parent;
-    }
-  }
-  return taxid0;
-}
-
 int main(int argc, char *argv[]) {
   mm_idxopt_t iopt;
   mm_mapopt_t mopt;
