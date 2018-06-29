@@ -7,13 +7,12 @@
 #include "../incl/klib/kseq.h"
 
 /*
- * fastdiff.c
+ * covstat.c
  *
  * Jeremy Wang
- * 20180419
+ * 20180628
  *
- * As fast as possible compute the loci where the average read from
- * the bam file differs from the reference
+ * Compute coverage over named sequences (maybe species/chromosomes)
 */
 
 // have to reorder params to make this work with kseq
@@ -46,7 +45,7 @@ KHASH_MAP_INIT_STR(name2stats, refstats);
 int main(int argc, char *argv[]) {
 
   if(argc < 4) {
-    fprintf(stderr, "Usage: fastdiff <BAM> <reference FASTA> <accession map>\n");
+    fprintf(stderr, "Usage: covstat <BAM> <reference FASTA> <accession map>\n");
     fprintf(stderr, "Not enough arguments.\n");
     return -1;
   }
@@ -219,7 +218,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  printf("reference_name\tgenome_size\taligned_bp\tcovered_pct\tavg_coverage\tcoverage_of_covered_loci\n");
+  printf("reference_name\tgenome_size\taligned_bp\tcovered_loci\tcovered_pct\tavg_coverage\tcoverage_of_covered_loci\n");
   char* name;
   for (i = 0; i < header->n_targets; i++) {
     bin = kh_get(acc2name, a2n, header->target_name[i]);
@@ -241,7 +240,7 @@ int main(int argc, char *argv[]) {
       name = kh_key(n2s, bin);
       rs = kh_val(n2s, bin);
       if(rs.total_coverage > 0) {
-        printf("%s\t%d\t%d\t%f\t%f\t%f\n", name, rs.total_loci, rs.total_coverage, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
+        printf("%s\t%d\t%d\t%d\t%f\t%f\t%f\n", name, rs.total_loci, rs.total_coverage, rs.covered_loci, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
       }
     }
   }
