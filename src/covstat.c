@@ -89,10 +89,9 @@ int main(int argc, char *argv[]) {
     // initialized name2stats hash too
     bin = kh_put(name2stats, n2s, strdup(parts[1]), &absent);
     if(absent) {
-      rs = kh_val(n2s, bin);
-      rs.total_loci = 0;
-      rs.covered_loci = 0;
-      rs.total_coverage = 0;
+      kh_val(n2s, bin).total_loci = 0;
+      kh_val(n2s, bin).covered_loci = 0;
+      kh_val(n2s, bin).total_coverage = 0;
     }
   }
   fclose(fp);
@@ -240,7 +239,7 @@ int main(int argc, char *argv[]) {
       name = kh_key(n2s, bin);
       rs = kh_val(n2s, bin);
       if(rs.total_coverage > 0) {
-        printf("%s\t%d\t%d\t%d\t%f\t%f\t%f\n", name, rs.total_loci, rs.total_coverage, rs.covered_loci, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
+        printf("%s\t%u\t%u\t%u\t%f\t%f\t%f\n", name, rs.total_loci, rs.total_coverage, rs.covered_loci, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
       }
     }
   }
