@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "taxonomy.h"
 
 #define MAX_NODES 3000000
@@ -31,7 +32,15 @@ taxonomy* read_taxonomy(char* name_f, char* node_f) {
   while(a != NULL) {
     // keep only scientific names
     if(strcmp(a->name_class, "scientific name") == 0) {
-      names[a->taxid] = strcmp(a->unique_name, "") != 0 ? strdup(a->unique_name) : strdup(a->name);
+      char* n;
+      if(strcmp(a->unique_name, "") != 0) {
+        n = malloc(strlen(a->unique_name)+1);
+        strcpy(n, a->unique_name);
+      } else {
+        n = malloc(strlen(a->name)+1);
+        strcpy(n, a->name);
+      }
+      names[a->taxid] = n;
       //if(a->taxid == 9606)
       //  printf("%d '%s'\n", a->taxid, names[a->taxid]);
     }
@@ -91,7 +100,8 @@ name_line_t *name_read_line(name_file_t* dmp) {
   int i;
   name_line_t *line = malloc(sizeof(name_line_t));
   if(fgets(l, sizeof l, dmp->fp) != NULL) {
-    char* ln = strdup(l);
+    char* ln = malloc(strlen(l)+1);
+    strcpy(ln, l);
     parts = malloc(sizeof(char*) * 4); // 4 fields per line
     i = 0;
     parts[i] = strtok(ln, delim);
@@ -100,7 +110,7 @@ name_line_t *name_read_line(name_file_t* dmp) {
       if(i >= 4) break;
       parts[i] = strtok(NULL, delim);
       if(parts[i][strlen(parts[i])-1] == '\t') {
-        parts[i][strlen(parts[i])-1] = NULL;
+        parts[i][strlen(parts[i])-1] = '\0';
       }
       if(parts[i][0] == '\t') {
         parts[i]++;
@@ -116,9 +126,12 @@ name_line_t *name_read_line(name_file_t* dmp) {
       }
     }
     line->taxid = atoi(parts[0]);
-    line->name = strdup(parts[1]);
-    line->unique_name = strdup(parts[2]);
-    line->name_class = strdup(parts[3]);
+    line->name = malloc(strlen(parts[1])+1);
+    strcpy(line->name, parts[1]);
+    line->unique_name = malloc(strlen(parts[2])+1);
+    strcpy(line->unique_name, parts[2]);
+    line->name_class = malloc(strlen(parts[3])+1);
+    strcpy(line->name_class, parts[3]);
     //for(i = 0; i < 4; i++) free(parts[i]);
     free(parts);
   } else {
@@ -179,7 +192,8 @@ node_line_t *node_read_line(node_file_t* dmp) {
   int i;
   node_line_t *line = malloc(sizeof(node_line_t));
   if(fgets(l, sizeof l, dmp->fp) != NULL) {
-    char* ln = strdup(l);
+    char* ln = malloc(strlen(l)+1);
+    strcpy(ln, l);
     parts = malloc(sizeof(char*) * 3); // 3 fields per line
     i = 0;
     parts[i] = strtok(ln, delim);
@@ -188,7 +202,7 @@ node_line_t *node_read_line(node_file_t* dmp) {
       if(i >= 3) break;
       parts[i] = strtok(NULL, delim);
       if(parts[i][strlen(parts[i])-1] == '\t') {
-        parts[i][strlen(parts[i])-1] = NULL;
+        parts[i][strlen(parts[i])-1] = '\0';
       }
       if(parts[i][0] == '\t') {
         parts[i]++;
@@ -301,25 +315,25 @@ int add_to_tree(taxonomy *tax, taxtree *tree, size_t taxid) {
   //printf("\n");
 }
 
-void depth_first_traverse(taxonomy *tax, taxtree *tree, size_t taxid, int indent) {
+void depth_first_traverse(taxonomy *tax, taxtree *tree, size_t taxid, int indent, FILE* o) {
   khint_t bin = kh_get(nodehash, tree, taxid);
   int absent = (bin == kh_end(tree)); 
   int i;
   if(!absent) {
     if(tax->nodes[taxid].rank > 0 || kh_val(tree, bin).unique_count > 0) {
-      printf("%d\t%d\t%d\t%c\t", taxid, kh_val(tree, bin).count, kh_val(tree, bin).unique_count, RANK_CHARS[tax->nodes[taxid].rank]);
+      fprintf(o, "%d\t%d\t%d\t%c\t", taxid, kh_val(tree, bin).count, kh_val(tree, bin).unique_count, RANK_CHARS[tax->nodes[taxid].rank]);
       //for(i = 0; i < tax->nodes[taxid].rank; i++) {
       for(i = 0; i < indent; i++) {
-        printf("  ");
+        fprintf(o, "  ");
       }
-      printf("%s\n", tax->names[taxid]);
+      fprintf(o, "%s\n", tax->names[taxid]);
       indent++;
     }
     for(i = 0; i < kv_size(kh_val(tree, bin).children); i++) {
-      depth_first_traverse(tax, tree, kv_A(kh_val(tree, bin).children, i), indent);
+      depth_first_traverse(tax, tree, kv_A(kh_val(tree, bin).children, i), indent, o);
     }
   } else {
-    fprintf(stderr, "TaxID %d is apparently in the hierarchy but not a node in our tree - this is a bug", taxid);
+    fprintf(stderr, "TaxID %d is apparently in the hierarchy but not a node in our tree - this is a bug\n", taxid);
   }
 }
 
@@ -344,7 +358,8 @@ khash_t(acc2tax) *parse_acc2tax(char* f) {
   int absent;
   parts = malloc(sizeof(char*) * 4); // 4 fields per line
   while(fgets(l, sizeof l, fp) != NULL) {
-    char* ln = strdup(l);
+    char* ln = malloc(strlen(l)+1);
+    strcpy(ln, l);
     i = 0;
     parts[i] = strtok(ln, delim);
     while(parts[i] != NULL && strcmp(parts[i], "\n") != 0) {
@@ -360,7 +375,9 @@ khash_t(acc2tax) *parse_acc2tax(char* f) {
         return NULL;
       }
     }
-    bin = kh_put(acc2tax, a2tx, strdup(parts[1]), &absent);
+    char* a = malloc(strlen(parts[1])+1);
+    strcpy(a, parts[1]);
+    bin = kh_put(acc2tax, a2tx, a, &absent);
     if(!absent) {
       fprintf(stderr, "Accession ID '%s' occurs more than once...\n", parts[1]);
       return NULL;

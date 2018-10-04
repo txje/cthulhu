@@ -77,6 +77,7 @@ typedef struct name_line_t {
 
 name_line_t *name_read_line(name_file_t* dmp);
 name_file_t name_init(char* f);
+int name_close(name_file_t* dmp);
 
 
 /*
@@ -96,6 +97,7 @@ typedef struct node_line_t {
 
 node_line_t *node_read_line(node_file_t* dmp);
 node_file_t node_init(char* f);
+int node_close(node_file_t* dmp);
 
 
 /*
@@ -113,6 +115,10 @@ typedef struct tree_node {
 KHASH_MAP_INIT_INT(nodehash, tree_node);
 
 typedef khash_t(nodehash) taxtree;
+
+taxtree* new_tree();
+int add_to_tree(taxonomy *tax, taxtree *tree, size_t taxid);
+void depth_first_traverse(taxonomy *tax, taxtree *tree, size_t taxid, int indent, FILE* o);
 
 
 /*

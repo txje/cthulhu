@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include "../incl/htslib/htslib/sam.h"
 #include "../incl/klib/khash.h"
 #include "../incl/klib/ksort.h"
@@ -73,21 +74,26 @@ int main(int argc, char *argv[]) {
     parts = malloc(sizeof(char*) * 2); // only two fields separated by a tab
     i = 0;
     token = strtok(line, delim);
-    if(token != NULL)
-      parts[i] = strdup(token);
+    if(token != NULL) {
+      parts[i] = malloc(strlen(token)+1);
+      strcpy(parts[i], token);
+    }
     while(token != NULL) {
       i++;
       token = strtok(NULL, delim);
       if(token != NULL) {
-        parts[i] = strdup(token);
-        parts[i][strlen(parts[i])-1] = NULL;
+        parts[i] = malloc(strlen(token) + 1);
+        strcpy(parts[i], token);
+        parts[i][strlen(parts[i])-1] = '\0';
       }
     }
     bin = kh_put(acc2name, a2n, parts[0], &absent);
     kh_val(a2n, bin) = parts[1];
 
     // initialized name2stats hash too
-    bin = kh_put(name2stats, n2s, strdup(parts[1]), &absent);
+    char* a = malloc(strlen(parts[1])+1);
+    strcpy(a, parts[1]);
+    bin = kh_put(name2stats, n2s, a, &absent);
     if(absent) {
       kh_val(n2s, bin).total_loci = 0;
       kh_val(n2s, bin).covered_loci = 0;
@@ -110,15 +116,20 @@ int main(int argc, char *argv[]) {
   while ((l = kseq_read(seq)) >= 0) {
     // name: seq->name.s, seq: seq->seq.s, length: l
     //printf("Reading %s (%i bp).\n", seq->name.s, l);
+    char* a = malloc(strlen(seq->name.s)+1);
+    strcpy(a, seq->name.s);
 
     // seq array
-    bin = kh_put(refSeq, ref, strdup(seq->name.s), &absent);
+    bin = kh_put(refSeq, ref, a, &absent);
     // copy the seq read from kseq to a new heap here - this is pretty fast and the easiest way to implement right now (see kseq.h)
     kh_val(ref, bin) = malloc(sizeof(char)*l);
     memcpy(kh_val(ref, bin), seq->seq.s, sizeof(char)*l);
 
+    a = malloc(strlen(seq->name.s)+1);
+    strcpy(a, seq->name.s);
+
     // sequence length
-    bin = kh_put(refLen, rlen, strdup(seq->name.s), &absent);
+    bin = kh_put(refLen, rlen, a, &absent);
     kh_val(rlen, bin) = l;
   }
 
@@ -236,10 +247,9 @@ int main(int argc, char *argv[]) {
 
   for (bin = 0; bin < kh_end(n2s); ++bin) {
     if (kh_exist(n2s, bin)) {
-      name = kh_key(n2s, bin);
       rs = kh_val(n2s, bin);
       if(rs.total_coverage > 0) {
-        printf("%s\t%u\t%u\t%u\t%f\t%f\t%f\n", name, rs.total_loci, rs.total_coverage, rs.covered_loci, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
+        printf("%s\t%u\t%u\t%u\t%f\t%f\t%f\n", kh_key(n2s, bin), rs.total_loci, rs.total_coverage, rs.covered_loci, (float)rs.covered_loci/rs.total_loci, (float)rs.total_coverage/rs.total_loci, (float)rs.total_coverage/rs.covered_loci);
       }
     }
   }
