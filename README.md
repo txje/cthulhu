@@ -1,7 +1,7 @@
 CatTax
 ======
 
-    git clone https://github.com/txje/cattax
+    git clone https://github.com/txje/cthulhu
     mkdir incl
     cd incl
     git clone https://github.com/attractivechaos/klib

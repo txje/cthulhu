@@ -15,7 +15,7 @@ KSEQ_INIT(gzFile, gzread)
 KHASH_MAP_INIT_INT(tx2covg, uint8_t*); // map a taxid (here a 32-bit int, in reality a size_t [uint32_t], but the hash is the same)
 
 void usage() {
-  printf("Usage: cattax [options]\n");
+  printf("Usage: cthulhu [options]\n");
   printf("Options:\n");
   printf("  -q: FASTA/Q[.gz] file with reads\n");
   printf("  -r: Reference FASTA/Q[.gz] file\n");
@@ -330,7 +330,6 @@ int main(int argc, char *argv[]) {
 
 /*
 
- /\_/\
-(=^x^=)
+^(;,;)^
 
  */
