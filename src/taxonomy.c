@@ -333,7 +333,11 @@ void depth_first_traverse(taxonomy *tax, taxtree *tree, size_t taxid, int indent
       depth_first_traverse(tax, tree, kv_A(kh_val(tree, bin).children, i), indent, o);
     }
   } else {
-    fprintf(stderr, "TaxID %d is apparently in the hierarchy but not a node in our tree - this is a bug\n", taxid);
+    if(taxid == 1) {
+      fprintf(stderr, "Taxonomic tree is empty :(\n");
+    } else {
+      fprintf(stderr, "TaxID %d is apparently in the hierarchy but not a node in our tree - this is a bug\n", taxid);
+    }
   }
 }
 

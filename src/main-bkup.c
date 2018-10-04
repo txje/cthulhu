@@ -12,25 +12,18 @@
 #include <string.h>
 
 KSEQ_INIT(gzFile, gzread)
-
-typedef struct covarray {
-  uint8_t* cov;
-  uint32_t n;
-} covarray;
-
-KHASH_MAP_INIT_INT(ref2covg, covarray); // map a taxid (here a 32-bit int, in reality a size_t [uint32_t], but the hash is the same)
+KHASH_MAP_INIT_INT(tx2covg, uint8_t*); // map a taxid (here a 32-bit int, in reality a size_t [uint32_t], but the hash is the same)
 
 void usage() {
   printf("Usage: cthulhu [options]\n");
   printf("Options:\n");
   printf("  -q: FASTA/Q[.gz] file with reads\n");
-  printf("  -r: Reference FASTA/Q[.gz] or precomputed index file\n");
+  printf("  -r: Reference FASTA/Q[.gz] file\n");
   printf("  -d: Directory with *.dmp taxonomy files (NCBI taxonomy)\n");
   printf("  -t: Threads (default: 1)\n");
   printf("  -m: Maximum memory target (GB) (default: 32)\n");
   printf("  -s: Summary output file\n");
   printf("  -o: Read classification output\n");
-  printf("  -i: Save index file\n");
   printf("  -p: Sequence type preset\n");
   printf("      map-ont: Oxford Nanopore (default)\n");
   printf("      map-pb:  Pacbio\n");
@@ -62,18 +55,17 @@ int main(int argc, char *argv[]) {
   char* preset = "map-ont";
   char* out_file = NULL;
   char* summary_file = NULL;
-  char* idx_file = NULL;
   float align_fraction = 0.5;
   float align_accuracy = 0.7;
   int n_threads = 1;
   int verbose = 0;
   int careful = 0;
   int target_memory_gb = 32;
-  size_t covg_bin_size = 1000; // bin size in coverage arrays
+  size_t covg_bin_size = 100; // bin size in coverage arrays
 
   int opt, long_idx;
   opterr = 0;
-  while ((opt = getopt_long(argc, argv, "q:r:d:t:f:a:p:s:o:m:i:vh", long_options, &long_idx)) != -1) {
+  while ((opt = getopt_long(argc, argv, "q:r:d:t:f:a:p:s:o:m:vh", long_options, &long_idx)) != -1) {
     switch (opt) {
       case 'q':
         read_fasta = optarg;
@@ -100,13 +92,10 @@ int main(int argc, char *argv[]) {
         align_accuracy = atof(optarg);
         break;
       case 's':
-        summary_file = optarg;
-        break;
-      case 'o':
         out_file = optarg;
         break;
-      case 'i':
-        idx_file = optarg;
+      case 'o':
+        summary_file = optarg;
         break;
       case 'v':
         verbose = 1;
@@ -119,7 +108,7 @@ int main(int argc, char *argv[]) {
         return 0;
         break;
       case '?':
-        if (optopt == 'q' || optopt == 'r' || optopt == 'd' || optopt == 't' || optopt == 'f' || optopt == 'a' || optopt == 'p' || optopt == 'm' || optopt == 'o' || optopt == 's' || optopt == 'i')
+        if (optopt == 'q' || optopt == 'r' || optopt == 'd' || optopt == 't' || optopt == 'f' || optopt == 'a' || optopt == 'p' || optopt == 'm' || optopt == 'o' || optopt == 's')
           fprintf(stderr, "Option -%c requires an argument.\n", optopt);
         else if (isprint (optopt))
           fprintf(stderr, "Unknown option `-%c'.\n", optopt);
@@ -157,8 +146,7 @@ int main(int argc, char *argv[]) {
   }
 
   mm_verbose = 2; // disable message output to stderr
-  mm_set_opt(0, &iopt, &mopt); // initialize with defaults
-  mm_set_opt(preset, &iopt, &mopt); // then add ont presets
+  mm_idxopt_init(&iopt);
   // this isn't great, but it's close-ish
   if(target_memory_gb < 10) {
     iopt.batch_size = target_memory_gb * 100000000ULL;
@@ -171,8 +159,7 @@ int main(int argc, char *argv[]) {
   } else {
     iopt.batch_size = target_memory_gb * 400000000ULL;
   }
-  fprintf(stderr, "Target memory usage: %d GB\n", target_memory_gb);
-  fprintf(stderr, "Using batch size: %d Gbp [expect ~(40 / batch size) Gbp for Refseq]\n", iopt.batch_size/1000000000);
+  mm_set_opt(preset, &iopt, &mopt);
   if(careful)
     mopt.flag |= MM_F_CIGAR; // perform alignment
 
@@ -193,7 +180,7 @@ int main(int argc, char *argv[]) {
   khash_t(acc2tax) *a2tx = parse_acc2tax(acc2tax_f);
   fprintf(stderr, "Parsed taxonomy files.\n");
 
-  khash_t(ref2covg) *r2cv = kh_init(ref2covg); // tax id to (binned) coverage array
+  khash_t(tx2covg) *tx2cv = kh_init(tx2covg); // tax id to (binned) coverage array
 
   // open query file for reading; you may use your favorite FASTA/Q parser
   gzFile f;
@@ -201,7 +188,7 @@ int main(int argc, char *argv[]) {
 
   // open index reader
   fprintf(stderr, "Building mm2 index...\n");
-  mm_idx_reader_t *r = mm_idx_reader_open(ref_fasta, &iopt, idx_file);
+  mm_idx_reader_t *r = mm_idx_reader_open(ref_fasta, &iopt, 0);
   mm_idx_t *mi;
   khint_t bin; // hash bin (result of kh_put/get)
   int absent;
@@ -224,39 +211,27 @@ int main(int argc, char *argv[]) {
       }
       mm_reg1_t *reg;
       int j, i, n_reg;
-      if(verbose) {
-        fprintf(stderr, "Processing read %d (%s)\n", n, ks->name.s);
-      }
       reg = mm_map(mi, ks->seq.l, ks->seq.s, &n_reg, tbuf, &mopt, 0); // get all hits for the query
-      if(verbose) {
-        fprintf(stderr, "  %d raw alignments\n", n_reg);
-      }
       for (j = 0; j < n_reg; ++j) { // traverse hits and print them out
         mm_reg1_t *r = &reg[j];
         if(careful)
           assert(r->p); // with MM_F_CIGAR, this should not be NULL
 
+        bin = kh_get(acc2tax, a2tx, mi->seq[r->rid].name);
+        absent = (bin == kh_end(a2tx)); 
+        if(absent) {
+          fprintf(stderr, "Target/accession ID '%s' not found in acc2tax\n", mi->seq[r->rid].name);
+        } else {
+          taxid = kh_val(a2tx, bin);
+          //printf("Matches taxon %d (%s)\n", taxid, tax->names[taxid]);
+        }
+
         int aln_len = r->qe - r->qs;
         float aln_frac = (float)aln_len / ks->seq.l;
         float accuracy = (float)r->mlen / r->blen;
-        if(verbose) {
-          fprintf(stderr, "    matches ref %d (%d-%d)\n", r->rid, r->rs, r->re);
-        }
 
         // arbitrary thresholds right now - these should be parameterized
         if(aln_frac > align_fraction && accuracy > align_accuracy) {
-
-          bin = kh_get(acc2tax, a2tx, mi->seq[r->rid].name);
-          absent = (bin == kh_end(a2tx)); 
-          if(absent) {
-            fprintf(stderr, "Target/accession ID '%s' not found in acc2tax\n", mi->seq[r->rid].name);
-          } else {
-            taxid = kh_val(a2tx, bin);
-            if(verbose) {
-              fprintf(stderr, "      matches taxon %d (%s)\n", taxid, tax->names[taxid]);
-            }
-          }
-
           if(kv_A(read_taxa, n) == 0)
             kv_A(read_taxa, n) = taxid;
           else
@@ -264,20 +239,13 @@ int main(int argc, char *argv[]) {
         
           // only do pileup on the first primary alignment
           if(j == 0) {
-            bin = kh_put(ref2covg, r2cv, r->rid, &absent);
+            bin = kh_put(tx2covg, tx2cv, kv_A(read_taxa, n), &absent);
             if(absent) {
-              kh_val(r2cv, bin).n = mi->seq[r->rid].len / covg_bin_size + 1;
-              if(verbose) {
-                fprintf(stderr, "Making new coverage array of length %u (%u / %u) for ref %d\n", kh_val(r2cv, bin).n, mi->seq[r->rid].len, covg_bin_size, r->rid);
-              }
-              kh_val(r2cv, bin).cov = calloc(sizeof(uint8_t), kh_val(r2cv, bin).n);
+              kh_val(tx2cv, bin) = calloc(sizeof(uint8_t), mi->seq[r->rid].len / covg_bin_size + 1);
             }
-            for(i = r->rs/covg_bin_size; i <= r->re/covg_bin_size; i++) {
-              if(verbose) {
-                fprintf(stderr, "Incrementing coverage in bin %d\n", i);
-              }
-              if(kh_val(r2cv, bin).cov[i] < 255) {
-                kh_val(r2cv, bin).cov[i] += 1;
+            for(i = r->rs; i < r->re; i+=covg_bin_size) {
+              if(kh_val(tx2cv, bin)[i] < 255) {
+                kh_val(tx2cv, bin)[i] += 1;
               }
             }
           }
@@ -316,7 +284,7 @@ int main(int argc, char *argv[]) {
 
   // count reads per taxa
   taxtree *tree = new_tree();
-  int i, j;
+  int i;
   int no_hit = 0;
   FILE* o = out_file != NULL ? fopen(out_file, "w") : (FILE*)NULL;
   for(i = 0; i < kv_size(read_taxa); i++) {
@@ -335,9 +303,7 @@ int main(int argc, char *argv[]) {
   }
   if(summary_file != NULL) {
     FILE* sf = fopen(summary_file, "w");
-    fprintf(sf, "Taxa:\n");
     fprintf(sf, "0\t%d\t%d\tno hit\n", no_hit, no_hit);
-
     // output single taxa counts and build full hierarchal tree
     for (bin = 0; bin < kh_end(tree); ++bin) {
       if (kh_exist(tree, bin)) {
@@ -347,27 +313,6 @@ int main(int argc, char *argv[]) {
     }
     fprintf(sf, "\n");
 
-    // print coverage info
-    fprintf(sf, "Coverage:\n");
-    for (bin = 0; bin < kh_end(r2cv); ++bin) {
-      if (kh_exist(r2cv, bin)) {
-        uint8_t* c = kh_val(r2cv, bin).cov;
-        uint32_t n = kh_val(r2cv, bin).n;
-        uint32_t total = 0;
-        uint32_t covered = 0;
-        uint32_t refid = kh_key(r2cv, bin);
-        for(j = 0; j < n; j++) {
-          if(c[j] > 0) {
-            total += c[j];
-            covered += 1;
-          }
-        }
-        fprintf(sf, "%u\t%u\t%u\t%u\t%f\t%f\t%f\n", refid, n * covg_bin_size, total * covg_bin_size, covered * covg_bin_size, (float)covered/n, (float)total/n, (float)total/covered);
-      }
-    }
-    fprintf(sf, "\n");
-
-    fprintf(sf, "Tree:\n");
     depth_first_traverse(tax, tree, 1, 0, sf); // do a depth-first tree render starting at the root
   }
 
