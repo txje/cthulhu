@@ -1,6 +1,11 @@
-CatTax
-======
+cthulhu
+=======
 
+A fast and accurate taxonomic classifier for long-read metagenomes
+
+
+Installation
+------------
     git clone https://github.com/txje/cthulhu
     mkdir incl
     cd incl
