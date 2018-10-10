@@ -54,7 +54,11 @@ int paf_parse(int l, char *s, paf_rec_t *pr) // s must be NULL terminated
     else if (t == 8) pr->te = strtol(q, &r, 10);
     else if (t == 9) pr->ml = strtol(q, &r, 10);
     else if (t == 10) pr->bl = strtol(q, &r, 10);
+    else if (t == 11) pr->mq = strtol(q, &r, 10);
     ++t, q = i < l? &s[i+1] : 0;
+  }
+  if(t < 11) {
+    pr->mq = 255;
   }
   if (t < 10) return -1;
   return 0;

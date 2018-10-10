@@ -266,8 +266,8 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Specify -o, -s, or both, otherwise we're doing all this for nothing\n");
     return 1;
   }
-  if(paf_file != NULL) {
-    fprintf(stderr, "--paf and --alignment-output specified, ignoring --alignment-output\n");
+  if(paf_file != NULL && strcmp(paf_file, "-") != 0) {
+    fprintf(stderr, "--paf and --alignment-output specified, but --paf is not stdin, so we're ignoring --alignment-output\n");
     align_file = NULL;
   }
 
@@ -412,6 +412,12 @@ int main(int argc, char *argv[]) {
     int ret = paf_read(p, &r);
     while(ret == 0) {
       track_align(&r, verbose, align_fraction, align_length, align_accuracy, best, covg_bin_size, a2tx, tax, r2t, read_taxa);
+      if(align_file != NULL) {
+        fprintf(af, "%s\t%d\t%d\t%d\t%c\t", r.qn, r.ql, r.qs, r.qe, "+-"[r.rev]);
+        fprintf(af, "%s\t%d\t%d\t%d\t%d\t%d\t%d", r.tn, r.tl, r.ts, r.te, r.ml, r.bl, r.mq);
+        // cannot currently print CIGAR string in cg:Z tag because we can't guarantee the PAF has it and we aren't parsing it
+        fprintf(af, "\n");
+      }
       ret = paf_read(p, &r);
     }
     paf_close(p);
