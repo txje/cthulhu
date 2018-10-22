@@ -436,7 +436,6 @@ int main(int argc, char *argv[]) {
   //fprintf(stderr, "building tax tree\n");
   // count reads per taxa
   taxtree *tree = new_tree();
-  int i, j;
   int no_hit = 0;
   FILE* o = out_file != NULL ? fopen(out_file, "w") : (FILE*)NULL;
   for (bin = 0; bin < kh_end(read_taxa); ++bin) {
@@ -446,7 +445,7 @@ int main(int argc, char *argv[]) {
       } else {
         // output taxa result for this read
         if(out_file != NULL) {
-          fprintf(o, "%d\t%d\t%s\t%d\n", i, kh_val(read_taxa, bin).taxid, tax->names[kh_val(read_taxa, bin).taxid], kh_val(read_taxa, bin).score);
+          fprintf(o, "%s\t%d\t%s\t%d\n", kh_key(read_taxa, bin), kh_val(read_taxa, bin).taxid, tax->names[kh_val(read_taxa, bin).taxid], kh_val(read_taxa, bin).score);
         }
 
         if(summary_file != NULL) {
@@ -456,6 +455,8 @@ int main(int argc, char *argv[]) {
     }
   }
   if(summary_file != NULL) {
+    int j;
+
     FILE* sf = fopen(summary_file, "w");
     fprintf(sf, "Taxa:\n");
     fprintf(sf, "0\t%d\t%d\tno hit\n", no_hit, no_hit);
