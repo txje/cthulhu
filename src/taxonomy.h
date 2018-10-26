@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "../incl/klib/kvec.h"
 #include "../incl/klib/khash.h"
 
@@ -106,8 +107,8 @@ int node_close(node_file_t* dmp);
 
 typedef struct tree_node {
   kvec_t(size_t) children;
-  int count;
-  int unique_count;
+  uint32_t count;
+  uint32_t unique_count;
 } tree_node;
 
 // creates int:tree_node hash
