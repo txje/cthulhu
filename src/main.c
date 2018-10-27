@@ -102,7 +102,8 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
     bin = kh_get(acc2tax, a2tx, p->tn);
     int absent = (bin == kh_end(a2tx)); 
     if(absent) {
-      fprintf(stderr, "Target/accession ID '%s' not found in acc2tax\n", p->tn);
+      fprintf(stderr, "Target/accession ID '%s' not found in acc2tax, will be assigned to 1 (root)\n", p->tn);
+      taxid = 1;
     } else {
       taxid = kh_val(a2tx, bin);
       if(verbose) {
@@ -119,6 +120,24 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
       kh_val(r2t, bin).taxid = taxid;
     }
 
+    // add to the coverage for any hit meeting our minimum alignment threshold
+    if(kh_val(r2t, bin).n == 0) { // coverage array has never been initialized
+      kh_val(r2t, bin).n = p->tl / covg_bin_size + 1;
+      if(verbose) {
+        fprintf(stderr, "Making new coverage array of length %u (%u / %u) for ref %s\n", kh_val(r2t, bin).n, p->tl, covg_bin_size, p->tn);
+      }
+      kh_val(r2t, bin).cov = calloc(sizeof(uint8_t), kh_val(r2t, bin).n);
+    }
+    //for(i = p->ts/covg_bin_size; i <= p->te/covg_bin_size; i++) {
+    i = p->ts/covg_bin_size;
+      if(verbose) {
+        fprintf(stderr, "Incrementing coverage in bin %d (of %u)\n", i, kh_val(r2t, bin).n);
+      }
+      if(kh_val(r2t, bin).cov[i] < 255) {
+        kh_val(r2t, bin).cov[i] += 1;
+      }
+    //}
+
     bin2 = kh_put(read2tax, read_taxa, p->qn, &absent);
     if(absent) {
       kh_key(read_taxa, bin2) = malloc(strlen(p->qn)+1); // string has to be duplicated because the query name will be freed or reassigned as soon as we're done processing this alignment
@@ -130,24 +149,6 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
     if(kh_val(read_taxa, bin2).taxid == 0 || (best && p->ml > kh_val(read_taxa, bin2).score)) {
       kh_val(read_taxa, bin2).taxid = taxid;
       kh_val(read_taxa, bin2).score = p->ml; // total matched loci
-
-      // add to the coverage if it's the best (should be the first one, this will actually add to multiple if they are in *increasing* score order)
-      if(kh_val(r2t, bin).n == 0) { // coverage array has never been initialized
-        kh_val(r2t, bin).n = p->tl / covg_bin_size + 1;
-        if(verbose) {
-          fprintf(stderr, "Making new coverage array of length %u (%u / %u) for ref %s\n", kh_val(r2t, bin).n, p->tl, covg_bin_size, p->tn);
-        }
-        kh_val(r2t, bin).cov = calloc(sizeof(uint8_t), kh_val(r2t, bin).n);
-      }
-      //for(i = p->ts/covg_bin_size; i <= p->te/covg_bin_size; i++) {
-      i = p->ts/covg_bin_size;
-        if(verbose) {
-          fprintf(stderr, "Incrementing coverage in bin %d (of %u)\n", i, kh_val(r2t, bin).n);
-        }
-        if(kh_val(r2t, bin).cov[i] < 255) {
-          kh_val(r2t, bin).cov[i] += 1;
-        }
-      //}
     } else if(!best || p->ml == kh_val(read_taxa, bin2).score) {
       kh_val(read_taxa, bin2).taxid = lca(taxid, kh_val(read_taxa, bin2).taxid, tax);
     }
@@ -343,7 +344,10 @@ int main(int argc, char *argv[]) {
     while ((mi = mm_idx_reader_read(r, n_threads)) != 0) { // traverse each part of the index
       // open (or re-open) the query file -- needs to be re-read through for each part of the index
       f = gzopen(read_fasta, "r");
-      assert(f);
+      if(!f) {
+        fprintf(stderr, "'%s' does not exist, try again");
+        return 1;
+      }
       ks = kseq_init(f); 
 
       fprintf(stderr, "Processing mm2 index (or fraction thereof)...\n");
