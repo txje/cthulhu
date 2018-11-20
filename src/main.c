@@ -318,10 +318,10 @@ int main(int argc, char *argv[]) {
 
   taxonomy* tax = read_taxonomy(name_f, node_f);
 
-  char* acc2asm_f = malloc((strlen(tax_dir)+35) * sizeof(char));
+  char* acc2asm_f = malloc((strlen(tax_dir)+42) * sizeof(char));
   strcpy(acc2asm_f, tax_dir);
   //strcat(acc2asm_f, "/nucl_gb.accession2taxid.filtered");
-  strcat(acc2asm_f, "/merged_accession_map.txt");
+  strcat(acc2asm_f, "/refseq/merged_accession_map.txt");
 
   khash_t(acc2asm) *a2a = kh_init(acc2asm); // accession (NC_**) to assembly (GCF_**)
   int ret = parse_acc2tax(acc2asm_f, a2a);
@@ -546,6 +546,8 @@ int main(int argc, char *argv[]) {
     depth_first_traverse(tax, tree, 1, 0, sf); // do a depth-first tree render starting at the root
   }
 
+  // --- clean up memory ---
+
   // clean up a2a (acc2asm)
   for (bin = 0; bin < kh_end(a2a); ++bin) {
     if (kh_exist(a2a, bin)) {
@@ -554,18 +556,16 @@ int main(int argc, char *argv[]) {
     }
   }
   kh_destroy(acc2asm, a2a);
-
-  // clean up memory
   kh_destroy(nodehash, tree);
-  // TODO: clean up read name keys in read_taxa
+  for (bin = 0; bin < kh_end(read_taxa); ++bin) {
+    if (kh_exist(read_taxa, bin)) {
+      free((char*)kh_key(read_taxa, bin));
+    }
+  }
   kh_destroy(read2tax, read_taxa);
-  //fprintf(stderr, "freeing node_f\n");
   free(name_f);
-  //fprintf(stderr, "freeing name_f\n");
   free(node_f);
-  //fprintf(stderr, "freeing acc2asm_f\n");
   free(acc2asm_f);
-  //fprintf(stderr, "freeing tax\n");
   free_tax(tax);
 
   return 0;
