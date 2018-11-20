@@ -347,20 +347,19 @@ void depth_first_traverse(taxonomy *tax, taxtree *tree, size_t taxid, int indent
  */
 
 
-khash_t(acc2tax) *parse_acc2tax(char* f) {
-  khash_t(acc2tax) *a2tx = kh_init(acc2tax);
-  //kh_resize(acc2tax, a2tx, 150000000); // there are ~133m accessions that we'll end up indexing - I'm not sure doing this saves any time (or space)
+int parse_acc2tax(char* f, khash_t(acc2asm) *a2a) {
+  //kh_resize(acc2asm, a2a, 150000000); // there are ~133m accessions that we'll end up indexing - I'm not sure doing this saves any time (or space)
   FILE *fp = fopen(f, "r");
   if( fp == NULL ) {
     fprintf(stderr, "Error reading acc2tax file '%s'\n", f);
   }
   char l[1024]; // maximum line size is 1024 chars
-  const char* delim = "\t";
+  const char* delim = " ";
   char **parts;
   int i;
   khint_t bin; // hash bin (result of kh_put)
   int absent;
-  parts = malloc(sizeof(char*) * 4); // 4 fields per line
+  parts = malloc(sizeof(char*) * 3); // 3 fields per line (accession ID, assembly ID, taxon ID)
   while(fgets(l, sizeof l, fp) != NULL) {
     char* ln = malloc(strlen(l)+1);
     strcpy(ln, l);
@@ -368,29 +367,32 @@ khash_t(acc2tax) *parse_acc2tax(char* f) {
     parts[i] = strtok(ln, delim);
     while(parts[i] != NULL && strcmp(parts[i], "\n") != 0) {
       i++;
-      if(i >= 4) break;
+      if(i >= 3) break;
       parts[i] = strtok(NULL, delim);
     }
-    if(i != 4) { // line too short or small or -1 for EOF
+    if(i != 3) { // line too short or small or -1 for EOF
       if(i == -1) {
-        return NULL;
+        return 1;
       } else {
         fprintf(stderr, "acc2tax does not appear to be in expected format (some line has %d fields) - STOPPED READING HERE\n", i);
-        return NULL;
+        return 1;
       }
     }
-    char* a = malloc(strlen(parts[1])+1);
-    strcpy(a, parts[1]);
-    bin = kh_put(acc2tax, a2tx, a, &absent);
+    // accession ID (key)
+    char* a = malloc(strlen(parts[0])+1);
+    strcpy(a, parts[0]);
+    bin = kh_put(acc2asm, a2a, a, &absent);
     if(!absent) {
       fprintf(stderr, "Accession ID '%s' occurs more than once...\n", parts[1]);
-      return NULL;
+      return 1;
     }
-    kh_val(a2tx, bin) = atoi(parts[2]);
+    kh_val(a2a, bin).assembly = malloc(strlen(parts[1])+1);
+    strcpy(kh_val(a2a, bin).assembly, parts[1]);
+    kh_val(a2a, bin).taxid = atoi(parts[2]);
   }
   free(parts);
   fclose(fp);
-  return a2tx;
+  return 0;
 }
 
 int lca(int taxid0, int taxid1, taxonomy* tax) {

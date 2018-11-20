@@ -126,10 +126,15 @@ void depth_first_traverse(taxonomy *tax, taxtree *tree, size_t taxid, int indent
  * Utils
  */
 
-// creates string:size_t hash
-// to map accessions to taxonomy IDs
-KHASH_MAP_INIT_STR(acc2tax, size_t);
+typedef struct asm_tax {
+  char* assembly;
+  size_t taxid;
+} asm_tax;
 
-khash_t(acc2tax) *parse_acc2tax(char* f);
+// creates string:asm_tax hash
+// to map accession (NC...) to assembly (GCF...), and taxid
+KHASH_MAP_INIT_STR(acc2asm, asm_tax);
+
+int parse_acc2tax(char* f, khash_t(acc2asm)*);
 
 int lca(int taxid0, int taxid1, taxonomy* tax);

@@ -19,13 +19,12 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-typedef struct taxcov {
+typedef struct seqcov {
   uint8_t* cov;
   uint32_t n;
-  uint32_t taxid;
-} taxcov;
+} seqcov;
 
-KHASH_MAP_INIT_STR(ref2tc, taxcov);
+KHASH_MAP_INIT_STR(ref2cov, seqcov);
 
 typedef struct taxa_hit {
   int taxid;
@@ -36,13 +35,18 @@ typedef struct taxa_hit {
 KHASH_MAP_INIT_STR(read2tax, taxa_hit);
 
 typedef struct coverage {
+  size_t taxid;
   uint32_t n_loci;
   uint32_t total_coverage;
   uint32_t covered_loci;
 } coverage;
 
-// creates int (tax id):coverage hash
-KHASH_MAP_INIT_INT(tax2cov, coverage*);
+// creates string (assembly id):coverage hash
+KHASH_MAP_INIT_STR(asm2cov, coverage*);
+
+void version() {
+  printf("cthulhu version 0.1\n");
+}
 
 void usage() {
   printf("Usage: cthulhu [options]\n");
@@ -68,6 +72,7 @@ void usage() {
   printf("  -b, --best: Use only the best (or tied for the best) alignments for each read\n");
   printf("  -v, --verbose: verbose\n");
   printf("  -h, --help: show this\n");
+  printf("  --version: show version information\n");
 }
 
 static struct option long_options[] = {
@@ -80,11 +85,12 @@ static struct option long_options[] = {
   { "verbose",                no_argument,       0, 'v' },
   { "help",                   no_argument,       0, 'h' },
   { "best",                   no_argument,       0, 'b' },
-  { "paf",                    required_argument,       0, 0 },
+  { "paf",                    required_argument, 0, 0 },
+  { "version",                no_argument,       0, 0 },
   { 0, 0, 0, 0}
 };
 
-void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_length, float align_accuracy, int best, int covg_bin_size, khash_t(acc2tax) *a2tx, taxonomy *tax, khash_t(ref2tc) *r2t, khash_t(read2tax) *read_taxa) {
+void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_length, float align_accuracy, int best, int covg_bin_size, khash_t(acc2asm) *a2a, taxonomy *tax, khash_t(ref2cov) *r2c, khash_t(read2tax) *read_taxa) {
   int i;
   size_t taxid;
 
@@ -99,42 +105,43 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
 
     khint_t bin, bin2;
 
-    bin = kh_get(acc2tax, a2tx, p->tn);
-    int absent = (bin == kh_end(a2tx)); 
+    bin = kh_get(acc2asm, a2a, p->tn);
+    int absent = (bin == kh_end(a2a)); 
     if(absent) {
-      fprintf(stderr, "Target/accession ID '%s' not found in acc2tax, will be assigned to 1 (root)\n", p->tn);
+      fprintf(stderr, "Target/accession ID '%s' not found in acc2asm, will be assigned to 1 (root)\n", p->tn);
       taxid = 1;
     } else {
-      taxid = kh_val(a2tx, bin);
+      taxid = kh_val(a2a, bin).taxid;
       if(verbose) {
         fprintf(stderr, "      matches taxon %d (%s)\n", taxid, tax->names[taxid]);
       }
     }
 
-    // add ref:tax to r2t hash (if this ref has already been hit, it already exists, but we don't care)
-    bin = kh_put(ref2tc, r2t, p->tn, &absent);
-    kh_key(r2t, bin) = malloc(strlen(p->tn)+1);
-    strcpy(kh_key(r2t, bin), p->tn);
+    // add ref:tax to r2c hash (if this ref has already been hit, it already exists, but we don't care)
+    bin = kh_get(ref2cov, r2c, p->tn);
+    absent = (bin == kh_end(r2c)); 
     if(absent) {
-      kh_val(r2t, bin).n = 0;
-      kh_val(r2t, bin).taxid = taxid;
+      char *key = malloc(strlen(p->tn)+1);
+      strcpy(key, p->tn);
+      bin = kh_put(ref2cov, r2c, key, &absent);
+      kh_val(r2c, bin).n = 0;
     }
 
     // add to the coverage for any hit meeting our minimum alignment threshold
-    if(kh_val(r2t, bin).n == 0) { // coverage array has never been initialized
-      kh_val(r2t, bin).n = p->tl / covg_bin_size + 1;
+    if(kh_val(r2c, bin).n == 0) { // coverage array has never been initialized
+      kh_val(r2c, bin).n = p->tl / covg_bin_size + 1;
       if(verbose) {
-        fprintf(stderr, "Making new coverage array of length %u (%u / %u) for ref %s\n", kh_val(r2t, bin).n, p->tl, covg_bin_size, p->tn);
+        fprintf(stderr, "Making new coverage array of length %u (%u / %u) for ref %s\n", kh_val(r2c, bin).n, p->tl, covg_bin_size, p->tn);
       }
-      kh_val(r2t, bin).cov = calloc(sizeof(uint8_t), kh_val(r2t, bin).n);
+      kh_val(r2c, bin).cov = calloc(sizeof(uint8_t), kh_val(r2c, bin).n);
     }
     //for(i = p->ts/covg_bin_size; i <= p->te/covg_bin_size; i++) {
     i = p->ts/covg_bin_size;
       if(verbose) {
-        fprintf(stderr, "Incrementing coverage in bin %d (of %u)\n", i, kh_val(r2t, bin).n);
+        fprintf(stderr, "Incrementing coverage in bin %d (of %u)\n", i, kh_val(r2c, bin).n);
       }
-      if(kh_val(r2t, bin).cov[i] < 255) {
-        kh_val(r2t, bin).cov[i] += 1;
+      if(kh_val(r2c, bin).cov[i] < 255) {
+        kh_val(r2c, bin).cov[i] += 1;
       }
     //}
 
@@ -250,6 +257,7 @@ int main(int argc, char *argv[]) {
         else if (long_idx == 6) {usage(); return 0;} // --help
         else if (long_idx == 7) best = 1; // --best
         else if (long_idx == 8) paf_file = optarg; // --paf
+        else if (long_idx == 9) {version(); return 0;} // --version
         break;
       default:
         usage();
@@ -310,14 +318,19 @@ int main(int argc, char *argv[]) {
 
   taxonomy* tax = read_taxonomy(name_f, node_f);
 
-  char* acc2tax_f = malloc((strlen(tax_dir)+44) * sizeof(char));
-  strcpy(acc2tax_f, tax_dir);
-  strcat(acc2tax_f, "/nucl_gb.accession2taxid.filtered");
+  char* acc2asm_f = malloc((strlen(tax_dir)+35) * sizeof(char));
+  strcpy(acc2asm_f, tax_dir);
+  //strcat(acc2asm_f, "/nucl_gb.accession2taxid.filtered");
+  strcat(acc2asm_f, "/merged_accession_map.txt");
 
-  khash_t(acc2tax) *a2tx = parse_acc2tax(acc2tax_f);
+  khash_t(acc2asm) *a2a = kh_init(acc2asm); // accession (NC_**) to assembly (GCF_**)
+  int ret = parse_acc2tax(acc2asm_f, a2a);
+  if(ret != 0) {
+    return ret;
+  }
   fprintf(stderr, "Parsed taxonomy files.\n");
 
-  khash_t(ref2tc) *r2t = kh_init(ref2tc);
+  khash_t(ref2cov) *r2c = kh_init(ref2cov);
 
   // open query file for reading; you may use your favorite FASTA/Q parser
   gzFile f;
@@ -381,7 +394,7 @@ int main(int argc, char *argv[]) {
           p.ml = r->mlen;
           p.bl = r->blen;
           p.rev = r->rev;
-          track_align(&p, verbose, align_fraction, align_length, align_accuracy, best, covg_bin_size, a2tx, tax, r2t, read_taxa);
+          track_align(&p, verbose, align_fraction, align_length, align_accuracy, best, covg_bin_size, a2a, tax, r2c, read_taxa);
 
           //printf("length %d, accuracy %f\n", aln_len, accuracy);
           if(align_file != NULL) {
@@ -421,7 +434,7 @@ int main(int argc, char *argv[]) {
     paf_rec_t r;
     int ret = paf_read(p, &r);
     while(ret == 0) {
-      track_align(&r, verbose, align_fraction, align_length, align_accuracy, best, covg_bin_size, a2tx, tax, r2t, read_taxa);
+      track_align(&r, verbose, align_fraction, align_length, align_accuracy, best, covg_bin_size, a2a, tax, r2c, read_taxa);
       if(align_file != NULL) {
         fprintf(af, "%s\t%d\t%d\t%d\t%c\t", r.qn, r.ql, r.qs, r.qe, "+-"[r.rev]);
         fprintf(af, "%s\t%d\t%d\t%d\t%d\t%d\t%d", r.tn, r.tl, r.ts, r.te, r.ml, r.bl, r.mq);
@@ -434,16 +447,6 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Closing file '%s'\n", paf_file);
   }
 
-  // clean up a2tx (acc2tax)
-  //fprintf(stderr, "freeing a2tx\n");
-  for (bin = 0; bin < kh_end(a2tx); ++bin) {
-    if (kh_exist(a2tx, bin))
-      free((char*)kh_key(a2tx, bin));
-  }
-  //fprintf(stderr, "destroying a2tx\n");
-  kh_destroy(acc2tax, a2tx);
-
-  //fprintf(stderr, "building tax tree\n");
   // count reads per taxa
   taxtree *tree = new_tree();
   int no_hit = 0;
@@ -470,22 +473,31 @@ int main(int argc, char *argv[]) {
 
     // collate coverage by taxid
     coverage* cv;
-    khash_t(tax2cov) *t2c = kh_init(tax2cov);
-    for (bin = 0; bin < kh_end(r2t); ++bin) {
-      if (kh_exist(r2t, bin)) {
-        char* ref_name = kh_key(r2t, bin);
-        taxid = kh_val(r2t, bin).taxid;
-        uint32_t n = kh_val(r2t, bin).n;
-        uint8_t* c = kh_val(r2t, bin).cov;
+    khash_t(asm2cov) *a2c = kh_init(asm2cov);
+    for (bin = 0; bin < kh_end(r2c); ++bin) {
+      if (kh_exist(r2c, bin)) {
+        // get ref (accession) name
+        char* ref_name = kh_key(r2c, bin);
+
+        // get tax ID
+        bin2 = kh_get(acc2asm, a2a, ref_name);
+        if(bin2 == kh_end(a2a)) continue; // absent, this ref_name was not in the accession lookup table, so we won't count its coverage
+        taxid = kh_val(a2a, bin2).taxid;
+        char* as = kh_val(a2a, bin2).assembly; // assembly ID (GCF...)
+
+        uint32_t n = kh_val(r2c, bin).n;
+        uint8_t* c = kh_val(r2c, bin).cov;
 
         if(n > 0) {
-          bin2 = kh_put(tax2cov, t2c, taxid, &absent);
+          bin2 = kh_put(asm2cov, a2c, as, &absent); // reuses the value in a2a
+          //fprintf(stderr, "asm2cov bin %u\n", bin2);
           if(absent) {
             //fprintf(stderr, "Making new coverage count for taxa %u\n", taxid);
             cv = calloc(1, sizeof(coverage));
-            kh_val(t2c, bin2) = cv;
+            cv->taxid = taxid;
+            kh_val(a2c, bin2) = cv;
           } else {
-            cv = kh_val(t2c, bin2);
+            cv = kh_val(a2c, bin2);
           }
           //fprintf(stderr, "ref %s -> tax %u has %u loci\n", ref_name, taxid, n);
           //fprintf(stderr, "before tax %u has %u loci, %u covered, %u total covg\n", taxid, cv->n_loci, cv->covered_loci, cv->total_coverage);
@@ -503,8 +515,8 @@ int main(int argc, char *argv[]) {
     }
 
     FILE* sf = fopen(summary_file, "w");
-    fprintf(sf, "taxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
-    fprintf(sf, "0\tno hit\t%d\t%d\t0\t0\t0\t0\t0\t0\t0\t0\n", no_hit, no_hit);
+    fprintf(sf, "genome\ttaxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
+    fprintf(sf, "no hit\t0\tno hit\t%d\t%d\t0\t0\t0\t0\t0\t0\t0\t0\n", no_hit, no_hit);
 
     // output single taxa counts and build full hierarchal tree
     /*
@@ -516,24 +528,32 @@ int main(int argc, char *argv[]) {
     }
     */
 
-    for (bin = 0; bin < kh_end(t2c); ++bin) {
-      if (kh_exist(t2c, bin)) {
-        taxid = kh_key(t2c, bin);
+    for (bin = 0; bin < kh_end(a2c); ++bin) {
+      if (kh_exist(a2c, bin)) {
+        char* as = kh_key(a2c, bin);
+        cv = kh_val(a2c, bin);
+        taxid = cv->taxid;
         bin2 = kh_get(nodehash, tree, taxid);
-        absent = (bin2 == kh_end(tree)); 
-        if(absent) continue; // does not report coverage, although there may be some recorded, for taxa that did not have any reads ultimately assigned
-        cv = kh_val(t2c, bin);
+        if(bin2 == kh_end(tree)) continue; // does not report coverage, although there may be some recorded, for taxa that did not have any reads ultimately assigned
         uint32_t expect_covered = (uint32_t)round(cv->n_loci - pow(M_E, cv->total_coverage * log(cv->n_loci - 1) - (cv->total_coverage - 1) * log(cv->n_loci)));
-        fprintf(sf, "%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
+        fprintf(sf, "%s\t%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", as, taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
       }
     }
     //fprintf(sf, "\n");
     //}
 
-    //fprintf(sf, "Tree:\n");
-    //depth_first_traverse(tax, tree, 1, 0, sf); // do a depth-first tree render starting at the root
+    fprintf(sf, "\nTree:\n");
+    depth_first_traverse(tax, tree, 1, 0, sf); // do a depth-first tree render starting at the root
   }
 
+  // clean up a2a (acc2asm)
+  for (bin = 0; bin < kh_end(a2a); ++bin) {
+    if (kh_exist(a2a, bin)) {
+      free((char*)kh_key(a2a, bin));
+      free((char*)kh_val(a2a, bin).assembly);
+    }
+  }
+  kh_destroy(acc2asm, a2a);
 
   // clean up memory
   kh_destroy(nodehash, tree);
@@ -543,8 +563,8 @@ int main(int argc, char *argv[]) {
   free(name_f);
   //fprintf(stderr, "freeing name_f\n");
   free(node_f);
-  //fprintf(stderr, "freeing acc2tx_f\n");
-  free(acc2tax_f);
+  //fprintf(stderr, "freeing acc2asm_f\n");
+  free(acc2asm_f);
   //fprintf(stderr, "freeing tax\n");
   free_tax(tax);
 
