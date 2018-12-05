@@ -118,6 +118,7 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
     }
 
     // add ref:tax to r2c hash (if this ref has already been hit, it already exists, but we don't care)
+    //fprintf(stderr, "get ref2cov for %s\n", p->tn);
     bin = kh_get(ref2cov, r2c, p->tn);
     absent = (bin == kh_end(r2c)); 
     if(absent) {
@@ -145,6 +146,7 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
       }
     //}
 
+    //fprintf(stderr, "adding read to tax\n");
     bin2 = kh_put(read2tax, read_taxa, p->qn, &absent);
     if(absent) {
       kh_key(read_taxa, bin2) = malloc(strlen(p->qn)+1); // string has to be duplicated because the query name will be freed or reassigned as soon as we're done processing this alignment
@@ -157,6 +159,7 @@ void track_align(paf_rec_t *p, int verbose, float align_fraction, int align_leng
       kh_val(read_taxa, bin2).taxid = taxid;
       kh_val(read_taxa, bin2).score = p->ml; // total matched loci
     } else if(!best || p->ml == kh_val(read_taxa, bin2).score) {
+      //fprintf(stderr, "lca\n");
       kh_val(read_taxa, bin2).taxid = lca(taxid, kh_val(read_taxa, bin2).taxid, tax);
     }
   }
@@ -353,12 +356,16 @@ int main(int argc, char *argv[]) {
     // open index reader
     fprintf(stderr, "Building mm2 index...\n");
     mm_idx_reader_t *r = mm_idx_reader_open(ref_fasta, &iopt, idx_file);
+    if(!r) {
+      fprintf(stderr, "Cannot open '%s'\n", ref_fasta);
+      return 1;
+    }
     mm_idx_t *mi;
     while ((mi = mm_idx_reader_read(r, n_threads)) != 0) { // traverse each part of the index
       // open (or re-open) the query file -- needs to be re-read through for each part of the index
       f = gzopen(read_fasta, "r");
       if(!f) {
-        fprintf(stderr, "'%s' does not exist, try again");
+        fprintf(stderr, "Cannot open '%s'\n", read_fasta);
         return 1;
       }
       ks = kseq_init(f); 
@@ -431,8 +438,13 @@ int main(int argc, char *argv[]) {
   else { // paf must have been given
     fprintf(stderr, "Reading from alignment file '%s'\n", paf_file);
     paf_file_t *p = paf_open(paf_file);
+    if(!p) {
+      fprintf(stderr, "Cannot open '%s'\n", paf_file);
+      return 1;
+    }
     paf_rec_t r;
     int ret = paf_read(p, &r);
+    uint64_t n = 0;
     while(ret == 0) {
       track_align(&r, verbose, align_fraction, align_length, align_accuracy, best, covg_bin_size, a2a, tax, r2c, read_taxa);
       if(align_file != NULL) {
@@ -442,6 +454,11 @@ int main(int argc, char *argv[]) {
         fprintf(af, "\n");
       }
       ret = paf_read(p, &r);
+      /*
+      if((++n) % 100000 == 0) {
+        fprintf(stderr, "---- %u reads processed.\n", n);
+      }
+      */
     }
     paf_close(p);
     fprintf(stderr, "Closing file '%s'\n", paf_file);
@@ -542,8 +559,8 @@ int main(int argc, char *argv[]) {
     //fprintf(sf, "\n");
     //}
 
-    fprintf(sf, "\nTree:\n");
-    depth_first_traverse(tax, tree, 1, 0, sf); // do a depth-first tree render starting at the root
+    //fprintf(sf, "\nTree:\n");
+    //depth_first_traverse(tax, tree, 1, 0, sf); // do a depth-first tree render starting at the root
   }
 
   // --- clean up memory ---

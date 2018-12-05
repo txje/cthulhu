@@ -297,6 +297,9 @@ int add_to_tree(taxonomy *tax, taxtree *tree, size_t taxid) {
   //printf("  taxonomic hierarchy: ");
   while(taxid != 1) { // until we reach the root
     taxid = tax->nodes[taxid].parent;
+    if(taxid == 0) {
+      taxid = 1;
+    }
     bin = kh_put(nodehash, tree, taxid, &absent);
     if(absent) {
       kv_init(kh_val(tree, bin).children);
@@ -397,10 +400,15 @@ int parse_acc2tax(char* f, khash_t(acc2asm) *a2a) {
 
 int lca(int taxid0, int taxid1, taxonomy* tax) {
   while(taxid0 != 1 && taxid0 != taxid1) {
+    //fprintf(stderr, "lca taxids: %d %d\n", taxid0, taxid1);
     if(tax->nodes[taxid0].rank == 0 || tax->nodes[taxid0].rank > tax->nodes[taxid1].rank) {
       taxid0 = tax->nodes[taxid0].parent;
     } else {
       taxid1 = tax->nodes[taxid1].parent;
+    }
+    if(taxid0 == 0 || taxid1 == 0) {
+      // error
+      return 1;
     }
   }
   return taxid0;
