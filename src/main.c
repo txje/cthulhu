@@ -27,7 +27,7 @@ typedef struct seqcov {
 KHASH_MAP_INIT_STR(ref2cov, seqcov);
 
 typedef struct taxa_hit {
-  int taxid;
+  size_t taxid;
   int score;
 } taxa_hit;
 
@@ -43,6 +43,9 @@ typedef struct coverage {
 
 // creates string (assembly id):coverage hash
 KHASH_MAP_INIT_STR(asm2cov, coverage*);
+
+// create simple taxid : coverage to map taxid to the best accession coverage (shared with asm2cov)
+KHASH_MAP_INIT_INT(tax2cov, coverage*)
 
 void version() {
   printf("cthulhu version 0.1\n");
@@ -488,7 +491,8 @@ int main(int argc, char *argv[]) {
     int j;
     size_t taxid;
 
-    // collate coverage by taxid
+    // collate coverage by accession
+    khash_t(tax2cov) *t2c = kh_init(tax2cov); // taxon ID to *coverage (shared by a2c)
     coverage* cv;
     khash_t(asm2cov) *a2c = kh_init(asm2cov);
     for (bin = 0; bin < kh_end(r2c); ++bin) {
@@ -506,7 +510,7 @@ int main(int argc, char *argv[]) {
         uint8_t* c = kh_val(r2c, bin).cov;
 
         if(n > 0) {
-          bin2 = kh_put(asm2cov, a2c, as, &absent); // reuses the value in a2a
+          bin2 = kh_put(asm2cov, a2c, as, &absent); // reuses the value in r2c
           //fprintf(stderr, "asm2cov bin %u\n", bin2);
           if(absent) {
             //fprintf(stderr, "Making new coverage count for taxa %u\n", taxid);
@@ -526,14 +530,26 @@ int main(int argc, char *argv[]) {
               cv->covered_loci += 1;
             }
           }
+
+          // keep a pointer to the best coverage profile (ordered by covered_loci) in tax2cov (t2c)
+          if(verbose) {
+            fprintf(stderr, "adding accession %s to taxid %u\n", ref_name, taxid);
+          }
+          khint_t tbin = kh_put(tax2cov, t2c, taxid, &absent);
+          if(absent || cv->covered_loci > kh_val(t2c, tbin)->covered_loci) {
+            kh_val(t2c, tbin) = cv;
+          }
+
           //fprintf(stderr, "after tax %u has %u loci, %u covered, %u total covg\n", taxid, cv->n_loci, cv->covered_loci, cv->total_coverage);
         }
       }
     }
 
     FILE* sf = fopen(summary_file, "w");
-    fprintf(sf, "genome\ttaxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
-    fprintf(sf, "no hit\t0\tno hit\t%d\t%d\t0\t0\t0\t0\t0\t0\t0\t0\n", no_hit, no_hit);
+    fprintf(sf, "taxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
+    //fprintf(sf, "genome\ttaxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
+    fprintf(sf, "0\tno hit\t%d\t%d\t0\t0\t0\t0\t0\t0\t0\t0\n", no_hit, no_hit);
+    //fprintf(sf, "no hit\t0\tno hit\t%d\t%d\t0\t0\t0\t0\t0\t0\t0\t0\n", no_hit, no_hit);
 
     // output single taxa counts and build full hierarchal tree
     /*
@@ -545,15 +561,16 @@ int main(int argc, char *argv[]) {
     }
     */
 
-    for (bin = 0; bin < kh_end(a2c); ++bin) {
-      if (kh_exist(a2c, bin)) {
-        char* as = kh_key(a2c, bin);
-        cv = kh_val(a2c, bin);
+    for (bin = 0; bin < kh_end(t2c); ++bin) {
+      if (kh_exist(t2c, bin)) {
+        //char* as = kh_key(t2c, bin);
+        cv = kh_val(t2c, bin);
         taxid = cv->taxid;
         bin2 = kh_get(nodehash, tree, taxid);
         if(bin2 == kh_end(tree)) continue; // does not report coverage, although there may be some recorded, for taxa that did not have any reads ultimately assigned
         uint32_t expect_covered = (uint32_t)round(cv->n_loci - pow(M_E, cv->total_coverage * log(cv->n_loci - 1) - (cv->total_coverage - 1) * log(cv->n_loci)));
-        fprintf(sf, "%s\t%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", as, taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
+        //fprintf(sf, "%s\t%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", as, taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
+        fprintf(sf, "%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
       }
     }
     //fprintf(sf, "\n");

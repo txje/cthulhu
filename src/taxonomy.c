@@ -398,7 +398,7 @@ int parse_acc2tax(char* f, khash_t(acc2asm) *a2a) {
   return 0;
 }
 
-int lca(int taxid0, int taxid1, taxonomy* tax) {
+int lca(size_t taxid0, size_t taxid1, taxonomy* tax) {
   while(taxid0 != 1 && taxid0 != taxid1) {
     //fprintf(stderr, "lca taxids: %d %d\n", taxid0, taxid1);
     if(tax->nodes[taxid0].rank == 0 || tax->nodes[taxid0].rank > tax->nodes[taxid1].rank) {
