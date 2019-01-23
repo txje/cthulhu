@@ -43,6 +43,8 @@ taxonomy* read_taxonomy(char* name_f, char* node_f) {
       names[a->taxid] = n;
       //if(a->taxid == 9606)
       //  printf("%d '%s'\n", a->taxid, names[a->taxid]);
+      if(a->taxid == 1335303)
+        printf("%d '%s'\n", a->taxid, names[a->taxid]);
     }
     free(a);
     a = name_read_line(&name_dmp);
@@ -58,6 +60,8 @@ taxonomy* read_taxonomy(char* name_f, char* node_f) {
   node_line_t *b = node_read_line(&node_dmp);
   while(b != NULL) {
     //printf("%d %d %d\n", b->taxid, b->parent_taxid, b->rank);
+    if(b->taxid == 1335303)
+      printf("%u -> %u\n", b->taxid, b->parent_taxid);
     node n = {b->parent_taxid, b->rank};
     nodes[b->taxid] = n;
     free(b);
@@ -412,4 +416,15 @@ int lca(size_t taxid0, size_t taxid1, taxonomy* tax) {
     }
   }
   return taxid0;
+}
+
+size_t* get_hierarchy(size_t taxid, taxonomy* tax) {
+  size_t* h = calloc(7, sizeof(size_t));
+  while(taxid > 1) { // until we get to root (1), or a bad taxon (0)
+    if(RANK_PHYLUM <= tax->nodes[taxid].rank && tax->nodes[taxid].rank <= RANK_SUBSPECIES) { // 3-9: phylum->subspecies
+      h[tax->nodes[taxid].rank-RANK_PHYLUM] = taxid;
+    }
+    taxid = tax->nodes[taxid].parent;
+  }
+  return h;
 }

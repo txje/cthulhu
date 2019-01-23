@@ -546,6 +546,7 @@ int main(int argc, char *argv[]) {
     }
 
     FILE* sf = fopen(summary_file, "w");
+    fprintf(sf, "phylum_taxid\tclass_taxid\torder_taxid\tfamily_taxid\tgenus_taxid\tspecies_taxid\tsubspecies_taxid\t");
     fprintf(sf, "taxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
     //fprintf(sf, "genome\ttaxid\ttaxname\tread_count\tunique_read_count\tgenome_size\ttotal_coverage\tcovered_loci\tcovered_frac\tgenome_coverage\tcovered_coverage\texpect_covered\tcovered/expected\n");
     fprintf(sf, "0\tno hit\t%d\t%d\t0\t0\t0\t0\t0\t0\t0\t0\n", no_hit, no_hit);
@@ -570,6 +571,8 @@ int main(int argc, char *argv[]) {
         if(bin2 == kh_end(tree)) continue; // does not report coverage, although there may be some recorded, for taxa that did not have any reads ultimately assigned
         uint32_t expect_covered = (uint32_t)round(cv->n_loci - pow(M_E, cv->total_coverage * log(cv->n_loci - 1) - (cv->total_coverage - 1) * log(cv->n_loci)));
         //fprintf(sf, "%s\t%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", as, taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
+        size_t* tax_hierarchy = get_hierarchy(taxid, tax);
+        fprintf(sf, "%u\t%u\t%u\t%u\t%u\t%u\t%u\t", tax_hierarchy[0], tax_hierarchy[1], tax_hierarchy[2], tax_hierarchy[3], tax_hierarchy[4], tax_hierarchy[5], tax_hierarchy[6]);
         fprintf(sf, "%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
       }
     }

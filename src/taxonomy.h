@@ -138,3 +138,5 @@ KHASH_MAP_INIT_STR(acc2asm, asm_tax);
 int parse_acc2tax(char* f, khash_t(acc2asm)*);
 
 int lca(size_t taxid0, size_t taxid1, taxonomy* tax);
+
+size_t* get_hierarchy(size_t taxid, taxonomy* tax);
