@@ -578,7 +578,7 @@ int main(int argc, char *argv[]) {
         } else {
           cv = kh_val(t2c, bin2);
           uint32_t expect_covered = (uint32_t)round(cv->n_loci - pow(M_E, cv->total_coverage * log(cv->n_loci - 1) - (cv->total_coverage - 1) * log(cv->n_loci)));
-          fprintf(sf, "%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", taxid, tax->names[taxid], kh_val(tree, bin2).count, kh_val(tree, bin2).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
+          fprintf(sf, "%u\t%s\t%u\t%u\t%u\t%u\t%u\t%f\t%f\t%f\t%u\t%f\n", taxid, tax->names[taxid], kh_val(tree, bin).count, kh_val(tree, bin).unique_count, cv->n_loci * covg_bin_size, cv->total_coverage * covg_bin_size, cv->covered_loci * covg_bin_size, (float)cv->covered_loci/cv->n_loci, (float)cv->total_coverage/cv->n_loci, (float)cv->total_coverage/cv->covered_loci, expect_covered * covg_bin_size, (float)cv->covered_loci / expect_covered);
         }
       }
     }
