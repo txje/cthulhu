@@ -1,5 +1,5 @@
-mkdir -p db
-cd db
+mkdir -p db_20190226
+cd db_20190226
 
 echo "Getting NCBI taxonomy..."
 wget -q ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
@@ -47,6 +47,7 @@ fi
 
 awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt > ftpdirpaths
 awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
+rm ftpdirpaths
 echo "Downloading $(wc -l ftpfilepaths) files by ftp... this will take a long time."
 
 mkdir -p complete_genomes
@@ -61,16 +62,15 @@ while read f <&3 && read t <&4; do
     wget -q $f
   fi
   gcf="${filename%%.*}"
-  echo $filename $gcf
-  gunzip -c $filename | awk '{if(substr($1,1,1) == ">") {if(index(tolower($0), "plasmid") == 0 && index(tolower($0), "chloroplast") == 0 && index(tolower($0), "mitochondrion") == 0 && index(tolower($0), "plastid") == 0) {print substr($1,2)" '$gcf' '$t'";}}}' >> accession_map.txt
-  gunzip -c $filename | awk '{if(substr($1,1,1) == ">") {if(index(tolower($0), "plasmid") == 0 && index(tolower($0), "chloroplast") == 0 && index(tolower($0), "mitochondrion") == 0 && index(tolower($0), "plastid") == 0) {skip=0; print;} else {skip=1}} else {if(skip==0) {print;}}}' >> refseq_filtered.fasta
+  gunzip -c $filename | awk '{if(substr($1,1,1) == ">") {if(index(tolower($0), "plasmid") == 0 && index(tolower($0), "chloroplast") == 0 && index(tolower($0), "mitochondrion") == 0 && index(tolower($0), "plastid") == 0) {print substr($1,2)" '$gcf' '$t'";}}}' >> ../accession_map.txt
+  gunzip -c $filename | awk '{if(substr($1,1,1) == ">") {if(index(tolower($0), "plasmid") == 0 && index(tolower($0), "chloroplast") == 0 && index(tolower($0), "mitochondrion") == 0 && index(tolower($0), "plastid") == 0) {skip=0; print;} else {skip=1}} else {if(skip==0) {print;}}}' >> ../refseq_filtered.fasta
 done 3<../ftpfilepaths 4<../taxids
 cd ..
 
 en=`date +%s`
 
-echo "$(wc -l complete_genomes/accession_map.txt) accessions downloaded in $((en-st)) seconds."
+echo "$(wc -l accession_map.txt) accessions downloaded in $((en-st)) seconds."
 
-awk '{print $1}' complete_genomes/accession_map.txt > file_accessions.txt
+awk '{print $1}' accession_map.txt > file_accessions.txt
 
 cd ../..

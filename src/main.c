@@ -327,7 +327,7 @@ int main(int argc, char *argv[]) {
   char* acc2asm_f = malloc((strlen(tax_dir)+42) * sizeof(char));
   strcpy(acc2asm_f, tax_dir);
   //strcat(acc2asm_f, "/nucl_gb.accession2taxid.filtered");
-  strcat(acc2asm_f, "/refseq/merged_accession_map.txt");
+  strcat(acc2asm_f, "/refseq/accession_map.txt");
 
   khash_t(acc2asm) *a2a = kh_init(acc2asm); // accession (NC_**) to assembly (GCF_**)
   int ret = parse_acc2tax(acc2asm_f, a2a);
