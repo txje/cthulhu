@@ -1,5 +1,5 @@
-mkdir -p db_redo
-cd db_redo
+mkdir -p db
+cd db
 
 echo "Getting NCBI taxonomy..."
 wget -q ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
@@ -35,17 +35,17 @@ if [ ! -e human_assembly_summary.txt ]; then
   mv assembly_summary.txt human_assembly_summary.txt
 fi
 
-awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $6}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt | head -n20 > taxids
+awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $6}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt > taxids
 echo "$(wc -l taxids) assemblies found."
 
 # check that all taxids exist in the taxonomy database - they should
 missing=$(sort -n taxids | uniq | awk '{if(NR==FNR){a[$1]=1}else{if($1 in a){}else{print "taxonomy missing "$1}}}' ../names.dmp -)
-if [ -z "${#missing}" ]; then # empty or all spaces
+if [ -z "${#missing}" ]; then # empty or only whitespace
   echo "---------------- WARNING: SOME TAXONOMY IDs MISSING FROM TAXONOMY DATABASE ----------------"
   echo $missing
 fi
 
-awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt | head -n20 > ftpdirpaths
+awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt > ftpdirpaths
 awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
 echo "Downloading $(wc -l ftpfilepaths) files by ftp... this will take a long time."
 
