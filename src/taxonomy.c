@@ -43,8 +43,6 @@ taxonomy* read_taxonomy(char* name_f, char* node_f) {
       names[a->taxid] = n;
       //if(a->taxid == 9606)
       //  printf("%d '%s'\n", a->taxid, names[a->taxid]);
-      if(a->taxid == 1335303)
-        printf("%d '%s'\n", a->taxid, names[a->taxid]);
     }
     free(a);
     a = name_read_line(&name_dmp);
@@ -60,8 +58,6 @@ taxonomy* read_taxonomy(char* name_f, char* node_f) {
   node_line_t *b = node_read_line(&node_dmp);
   while(b != NULL) {
     //printf("%d %d %d\n", b->taxid, b->parent_taxid, b->rank);
-    if(b->taxid == 1335303)
-      printf("%u -> %u\n", b->taxid, b->parent_taxid);
     node n = {b->parent_taxid, b->rank};
     nodes[b->taxid] = n;
     free(b);
@@ -302,6 +298,7 @@ int add_to_tree(taxonomy *tax, taxtree *tree, size_t taxid) {
   while(taxid != 1) { // until we reach the root
     taxid = tax->nodes[taxid].parent;
     if(taxid == 0) {
+      fprintf(stderr, "taxon %u (%s) parent is 0, setting to 1 (root)\n", child_taxid, tax->names[child_taxid]);
       taxid = 1;
     }
     bin = kh_put(nodehash, tree, taxid, &absent);
@@ -391,6 +388,7 @@ int parse_acc2tax(char* f, khash_t(acc2asm) *a2a) {
     bin = kh_put(acc2asm, a2a, a, &absent);
     if(!absent) {
       fprintf(stderr, "Accession ID '%s' occurs more than once...\n", parts[1]);
+      continue;
       return 1;
     }
     kh_val(a2a, bin).assembly = malloc(strlen(parts[1])+1);
@@ -403,18 +401,21 @@ int parse_acc2tax(char* f, khash_t(acc2asm) *a2a) {
 }
 
 int lca(size_t taxid0, size_t taxid1, taxonomy* tax) {
-  while(taxid0 != 1 && taxid0 != taxid1) {
-    //fprintf(stderr, "lca taxids: %d %d\n", taxid0, taxid1);
-    if(tax->nodes[taxid0].rank == 0 || tax->nodes[taxid0].rank > tax->nodes[taxid1].rank) {
+  //fprintf(stderr, "LCA of taxa %lu and %lu is: \n", taxid0, taxid1);
+  while(taxid0 != 1 && taxid1 != 1 && taxid0 != taxid1) {
+    //fprintf(stderr, "taxid0: %lu rank %d (%s), taxid1: %lu rank %d (%s)\n", taxid0,tax->nodes[taxid0].rank, tax->names[taxid0], taxid1, tax->nodes[taxid1].rank, tax->names[taxid1]);
+    if(tax->nodes[taxid0].rank == 0 || (tax->nodes[taxid1].rank != 0 && tax->nodes[taxid0].rank > tax->nodes[taxid1].rank)) {
       taxid0 = tax->nodes[taxid0].parent;
     } else {
       taxid1 = tax->nodes[taxid1].parent;
     }
     if(taxid0 == 0 || taxid1 == 0) {
       // error
+      fprintf(stderr, "error bc taxid0 is %lu and taxid1 is %lu\n", taxid0, taxid1);
       return 1;
     }
   }
+  //fprintf(stderr, "%lu\n", taxid0);
   return taxid0;
 }
 

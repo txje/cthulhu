@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Specify -o, -s, or both, otherwise we're doing all this for nothing\n");
     return 1;
   }
-  if(paf_file != NULL && strcmp(paf_file, "-") != 0) {
+  if(paf_file != NULL && strcmp(paf_file, "-") != 0 && align_file != NULL) {
     fprintf(stderr, "--paf and --alignment-output specified, but --paf is not stdin, so we're ignoring --alignment-output\n");
     align_file = NULL;
   }
@@ -313,6 +313,10 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "Using batch size: %d Gbp [expect ~(40 / batch size) Gbp for Refseq]\n", iopt.batch_size/1000000000);
   if(careful)
     mopt.flag |= MM_F_CIGAR; // perform alignment
+
+  mopt.flag |= MM_F_NO_PRINT_2ND; // skip all secondary alignments
+  iopt.flag = 0;
+  //iopt.k = 21; // this ignores the requested preset probably, since map-ont only sets k anyway, but could substantially increase speed and decrease sensitivity
 
   char* name_f = malloc((strlen(tax_dir)+11) * sizeof(char));
   strcpy(name_f, tax_dir);

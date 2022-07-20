@@ -1,5 +1,9 @@
-mkdir -p db_20190226
-cd db_20190226
+#!/bin/bash
+#
+#SBATCH -n1 -N1 -c1 --mem=32G --job-name=cthulhu_db --out=makedb.log --time=11-0
+
+mkdir -p db_20200219_human_mouse_rabbit_drosophila
+cd db_20200219_human_mouse_rabbit_drosophila
 
 echo "Getting NCBI taxonomy..."
 wget -q ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
@@ -34,8 +38,21 @@ if [ ! -e human_assembly_summary.txt ]; then
   wget -q ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/assembly_summary.txt
   mv assembly_summary.txt human_assembly_summary.txt
 fi
+if [ ! -e mouse_assembly_summary.txt ]; then
+  wget -q ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Mus_musculus/assembly_summary.txt
+  mv assembly_summary.txt mouse_assembly_summary.txt
+fi
+if [ ! -e rabbit_assembly_summary.txt ]; then
+  wget -q ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Oryctolagus_cuniculus/assembly_summary.txt
+  mv assembly_summary.txt rabbit_assembly_summary.txt
+fi
+if [ ! -e invertebrate_assembly_summary.txt ]; then
+  wget -q ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/invertebrate/assembly_summary.txt
+  mv assembly_summary.txt invertebrate_assembly_summary.txt
+fi
 
-awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $6}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt > taxids
+awk -F "\t" '($12=="Complete Genome" || $12=="Chromosome") && $11=="latest"{print $6}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt mouse_assembly_summary.txt human_assembly_summary.txt rabbit_assembly_summary.txt invertebrate_assembly_summary.txt > taxids
+# human_assembly_summary.txt
 echo "$(wc -l taxids) assemblies found."
 
 # check that all taxids exist in the taxonomy database - they should
@@ -45,7 +62,9 @@ if [ -z "${#missing}" ]; then # empty or only whitespace
   echo $missing
 fi
 
-awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt human_assembly_summary.txt > ftpdirpaths
+# human is "Chromosome" level
+awk -F "\t" '($12=="Complete Genome" || $12=="Chromosome") && $11=="latest"{print $20}' bacteria_assembly_summary.txt archaea_assembly_summary.txt fungi_assembly_summary.txt protozoa_assembly_summary.txt viral_assembly_summary.txt mouse_assembly_summary.txt human_assembly_summary.txt rabbit_assembly_summary.txt invertebrate_assembly_summary.txt > ftpdirpaths
+# human_assembly_summary.txt
 awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
 rm ftpdirpaths
 echo "Downloading $(wc -l ftpfilepaths) files by ftp... this will take a long time."
